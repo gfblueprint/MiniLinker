@@ -20,8 +20,8 @@ class ObjectFile;
 class ElfHeader
 {
 public:
-	Elf64_Ehdr headerStruct;
-	ObjectFile* belongTo;
+	Elf64_Ehdr headerStruct_;
+	ObjectFile* belongTo_;
 
 	ElfHeader();
 
@@ -33,9 +33,9 @@ class SectionHeader
 {
 	//一个.o文件的节头表
 public:
-	Elf64_Shdr *sectionHeaderPtr;
-	ElfHeader *elfHead;
-	int num;
+	Elf64_Shdr *sectionHeaderPtr_;
+	ElfHeader *elfHead_;
+	int num_;
 
 	SectionHeader();
 	bool GetSectionHeader( ElfHeader eh );
@@ -47,11 +47,11 @@ class Section;
 class Symbol
 {
 public:
-	Elf64_Sym *symStr;		//符号表的原始信息
-	string name;
-	Section *belongToSec;
+	Elf64_Sym *symStr_;		//符号表的原始信息
+	string name_;
+	Section *belongToSec_;
 
-	int address;			//载入地址，由别人填写
+	int address_;			//载入地址，由别人填写
 
 	Symbol( Section *p );
 
@@ -64,9 +64,9 @@ class Section
 	//.o文件的节集合
 public:
 	SectionHeader secHeader;
-	vector<u8*> data;
-	ElfHeader *elfHead;		//冗余，为了方便
-	vector<Symbol> symArr;	//该.o文件中所有符号信息，为了处理方便，提取出来
+	vector<u8*> data_;
+	ElfHeader *elfHead_;		//冗余，为了方便
+	vector<Symbol> symArr_;	//该.o文件中所有符号信息，为了处理方便，提取出来
 
 	Section();
 	bool GetSection( ElfHeader &eh );

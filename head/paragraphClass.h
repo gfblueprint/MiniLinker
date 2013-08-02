@@ -15,9 +15,9 @@ class Paragraph
 {
 	//段表
 public:
-	ElfHeader *elfHead;
-	Elf64_Phdr *phdrPtr;
-	int num;
+	ElfHeader *elfHead_;
+	Elf64_Phdr *phdrPtr_;
+	int num_;
 
 	Paragraph();
 	bool GetParagraphHeader( ElfHeader &eh );

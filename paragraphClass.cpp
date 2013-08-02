@@ -11,24 +11,24 @@
 
 Paragraph::Paragraph()
 {
-	elfHead = NULL;
-	phdrPtr = NULL;
-	num = 0;
+	elfHead_ = NULL;
+	phdrPtr_ = NULL;
+	num_ = 0;
 }
 
 bool Paragraph::GetParagraphHeader( ElfHeader &eh )
 {
-	if( eh.belongTo == NULL )
+	if( eh.belongTo_ == NULL )
 		return false;
 
-	ObjectFile *body = eh.belongTo;
-	int offset = eh.headerStruct.e_phoff;
-	num = eh.headerStruct.e_phnum;
-	int size = eh.headerStruct.e_phentsize * num;
+	ObjectFile *body = eh.belongTo_;
+	int offset = eh.headerStruct_.e_phoff;
+	num_ = eh.headerStruct_.e_phnum;
+	int size = eh.headerStruct_.e_phentsize * num_;
 
-	phdrPtr = new Elf64_Phdr[num];
-	body->GetData( offset,(u8*)phdrPtr,size );
-	elfHead = &eh;
+	phdrPtr_ = new Elf64_Phdr[num_];
+	body->GetData( offset,(u8*)phdrPtr_,size );
+	elfHead_ = &eh;
 
 	return true;
 }

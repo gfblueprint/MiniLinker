@@ -33,25 +33,25 @@ class Builder
 public:
 	//标准库所在的目录，当缺少符号定义的时候会在标准库中寻找
 	string libDirPath_;
-	string entryFunc;
-	string outputPath;
+	string entryFunc_;
+	string outputPath_;
 	//用户代码需要我的func来调用和退出
-	string myEntryFuncObj;
+	string myEntryFuncObj_;
 	/*
 	 * 需要被处理的section集合
 	 * 每一个元素都是一个.o文件中的所有section集合
 	 */
-	vector<Section*> rawSection;
+	vector<Section*> rawSection_;
 	//虚拟合并所得顺序
-	vector<Position> order;
+	vector<Position> order_;
 
 	//目前还没有找到的符号集
-	map<string,Symbol> needed;
+	map<string,Symbol> needed_;
 	//目前已经找到的符号集
-	map<string,Symbol> finded;
+	map<string,Symbol> finded_;
 	//库中的符号集合
-	map<string,Symbol> inLib;
-	vector<Section*> libSection;
+	map<string,Symbol> inLib_;
+	vector<Section*> libSection_;
 
 	Builder( vector<string> &objFilePath,string lib,string output );
 	//找到完整的符号集，会搜索库
