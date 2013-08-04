@@ -31,10 +31,9 @@ Builder::Builder( vector<string> &objFilePath,string lib,string output )
 {
 	libDirPath_ = lib;
 	outputPath_ = output;
-	entryFunc_ = "main";
-//	myEntryFuncObj_ = "/home/ns/linkerLab/MiniCRT/entry.o";
-//	myEntryFuncObj = "/home/ns/linkerLab/libc-o/crt1.o";
-//	objFilePath.push_back(myEntryFuncObj_);
+	entryFunc_ = "mini_crt_entry";
+	myEntryFuncObj_ =  lib + "/entry.o";
+	objFilePath.push_back(myEntryFuncObj_);
 	for( unsigned int i = 0;i < objFilePath.size();++i )
 	{
 		//这些变量在后面都会以指针形式被保存下来，所以不能用局部变亮
@@ -83,12 +82,6 @@ bool Builder::NewSymbol( Symbol sym )
 		if( it != finded_.end() )
 		{
 			;
-//			if( sym.symStr->st_shndx == SHN_COMMON &&
-//				it->second.symStr->st_value < sym.symStr->st_value )
-//			{
-//				//common块，取最大的
-//				it->second.symStr->st_value = sym.symStr->st_value;
-//			}
 		}
 		else
 			//TODO 考虑此处的复制是否会有问题
@@ -117,8 +110,6 @@ bool Builder::NewSymbol( Symbol sym )
 			//sym is common and it->second is common
 			else if( sym.symStr_->st_shndx == SHN_COMMON && it->second.symStr_->st_shndx == SHN_COMMON )
 			{
-//				if( sym.symStr->st_value > it->second.symStr->st_value )
-//					it->second.symStr->st_value = sym.symStr->st_value;
 			}
 			//sym is common or undef and it->second is strong .. ignore
 			else
@@ -150,8 +141,6 @@ bool Builder::CollectSymbol()
 	//如果能够集齐返回真
 
 	//先处理rawSection，不够的再到标准库中找
-	//TODO section的释放问题
-
 	for( unsigned int i = 0;i < rawSection_.size();++i )
 	{
 		for( unsigned int j = 0;j < rawSection_[i]->symArr_.size();++j )
@@ -161,13 +150,12 @@ bool Builder::CollectSymbol()
 		}
 	}
 
-	//TODO 假设COMMON块只会由变量声明产生
 	map<string,Symbol>::iterator it = finded_.begin();
 	while( it != finded_.end() )
 	{
 		if( it->second.symStr_->st_shndx == SHN_COMMON )
 		{
-			cout << "Error :a common didn't fit" << endl;
+			cout << "error:" << it->first << "没有初始化" << endl;
 			return false;
 		}
 		++it;
@@ -243,6 +231,7 @@ bool Builder::CollectSymbol()
 			cout << it->first << endl;
 			++it;
 		}
+#ifdef DEBUG
 		cout << "已找到的符号" << endl;
 		it = finded_.begin();
 		while( it != finded_.end() )
@@ -250,6 +239,7 @@ bool Builder::CollectSymbol()
 			cout << it->first << endl;
 			++it;
 		}
+#endif
 		return false;
 	}
 
@@ -316,27 +306,24 @@ void Builder::PrintNeededSymbol()
 bool Builder::DoMerge()
 {
 	//先把要合并的节挑出来
+	//所有节最后分三种，可读可执行，可写可读，只读
 	for( unsigned int i = 0;i < rawSection_.size();++i )
 	{
 		Section *pSec = rawSection_[i];
 		for( int j = 0;j < pSec->secHeader.num_;++j )
 		{
-			/*
-			 * 包含这样属性的节一股脑加上
-			 */
 			if( pSec->secHeader.sectionHeaderPtr_[j].sh_size == 0 )
 				continue;
 			if( pSec->secHeader.sectionHeaderPtr_[j].sh_type == SHT_PROGBITS ||
 				pSec->secHeader.sectionHeaderPtr_[j].sh_type == SHT_NOBITS	)
 			{
 				Position tp( i,j );
-//				order_.push_back(tp);
 				Elf64_Xword flags = pSec->secHeader.sectionHeaderPtr_[j].sh_flags;
-				if( flags | SHF_EXECINSTR )
+				if( flags & SHF_EXECINSTR )
 					exeSec_.push_back(tp);
-				else if( flags | SHF_WRITE )
+				else if( flags & SHF_WRITE )
 					writeSec_.push_back(tp);
-				else if( flags | SHF_ALLOC )
+				else if( flags & SHF_ALLOC )
 					readSec_.push_back(tp);
 				else
 					;
@@ -352,7 +339,8 @@ bool Builder::DoMerge()
 		Elf64_Shdr *pshdr = &(rawSection_[exeSec_[i].a_]->secHeader.sectionHeaderPtr_[exeSec_[i].b_]);
 		CalculateSectionAddress( pshdr,offset,vAddr );
 	}
-	vAddr += CountAlign( vAddr,PAGE_SIZE_ALGIN );
+	//程序段比较特殊的要求
+	vAddr = vAddr + CountAlign( vAddr,PAGE_SIZE_ALGIN ) + offset;
 	for( unsigned int i = 0;i < writeSec_.size();++i )
 	{
 		order_.push_back( writeSec_[i] );
@@ -360,7 +348,7 @@ bool Builder::DoMerge()
 		CalculateSectionAddress( pshdr,offset,vAddr );
 
 	}
-	vAddr += CountAlign( vAddr,PAGE_SIZE_ALGIN );
+	vAddr = vAddr + CountAlign( vAddr,PAGE_SIZE_ALGIN ) + offset;
 	for( unsigned int i = 0;i < readSec_.size();++i )
 	{
 		order_.push_back( readSec_[i] );
@@ -403,7 +391,6 @@ void Builder::GetSymbolAddress()
 	 * 计算方法：
 	 * 节的虚拟地址加上符号在节中的偏移
 	 *
-	 * TODO 假设所有finded里的symbol都在order的节中
 	 */
 
 	map<string,Symbol>::iterator it = finded_.begin();
@@ -418,9 +405,9 @@ void Builder::GetSymbolAddress()
 		int secAddr = it->second.belongToSec_->secHeader.sectionHeaderPtr_[secIdx].sh_addr;
 		int symAddr = secAddr + it->second.symStr_->st_value;
 		it->second.SetAddress(symAddr);
-
+#ifdef DEBUG
 		cout << "Addr:" << it->first << "\t\t" << hex << symAddr << dec << endl;
-
+#endif
 		++it;
 	}
 }
@@ -483,20 +470,28 @@ void Builder::Relocation()
 					int relIdx = ph.sectionHeaderPtr_[i].sh_info;	//需要修正的地址
 					int symIdx = ph.sectionHeaderPtr_[i].sh_link;
 
+					int relAddr;
+
 					Elf64_Sym *pSym = &(((Elf64_Sym*)pSec->data_[symIdx])[ELF64_R_SYM(pRela->r_info)]);
 					char *pStrTab = (char*)pSec->data_[ ph.sectionHeaderPtr_[symIdx].sh_link ];
 					string symName( pStrTab + pSym->st_name );
 
 					if( symName == "" )
-						continue;
+					{
 
-					map<string,Symbol>::iterator it = finded_.find(symName);
-					if( it == finded_.end() )
-						continue;
+						//静态变量，没有对应的sym。将relAddr设为对应节的虚拟地址即可。会通过append正确计算
+						relAddr = pSec->secHeader.sectionHeaderPtr_[pSym->st_shndx].sh_addr;
+					}
+					else
+					{
+						map<string,Symbol>::iterator it = finded_.find(symName);
+						if( it == finded_.end() )
+							continue;
 
-					int relAddr = it->second.address_;
-					if( relAddr == -1 )
-						continue;
+						relAddr = it->second.address_;
+						if( relAddr == -1 )
+							continue;
+					}
 
 					//计算p
 					int pVal = ph.sectionHeaderPtr_[relIdx].sh_addr + pRela->r_offset;
@@ -514,10 +509,12 @@ void Builder::Relocation()
 					}
 					else
 					{
+#ifdef DEBUG
 						cout << "warning : 4" << endl;
+#endif
 					}
 
-#ifdef SYM_DEBUG
+#ifdef DEBUG
 				cout << "rela:" << symName << "\t" << symIdx << "\t" << hex << ELF64_R_SYM(pRela->r_info) << "\t" << relIdx << dec << endl;
 				cout << "pVal:" << hex << pVal << dec << endl;
 				cout << "symbol rel addr:" << hex << relAddr << dec << endl;
@@ -528,13 +525,14 @@ void Builder::Relocation()
 			}
 			else if( ph.sectionHeaderPtr_[i].sh_type == SHT_REL )
 			{
+				//没有处理这种节
 				cout << "warning : find rel" << endl;
 			}
 			else
 				;
 		}
 
-		#ifdef SYM_DEBUG
+		#ifdef  DEBUG
 					cout << "--------------" << endl;
 		#endif
 	}
@@ -589,7 +587,7 @@ bool Builder::GenerateBinary()
 	eh.e_entry = etAddr;
 	eh.e_phoff = sizeof(Elf64_Ehdr);
 	eh.e_phentsize = sizeof(Elf64_Phdr);
-	eh.e_phnum = 1;
+	eh.e_phnum = 3;
 	eh.e_shentsize = sizeof(Elf64_Shdr);
 	eh.e_shnum = 0;	//0
 	eh.e_shstrndx = 0;				//notice 没有字符串表 设为0
