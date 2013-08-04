@@ -32,7 +32,12 @@ Builder::Builder( vector<string> &objFilePath,string lib,string output )
 	libDirPath_ = lib;
 	outputPath_ = output;
 	entryFunc_ = "mini_crt_entry";
+<<<<<<< HEAD
+	myEntryFuncObj_ = "/home/ns/linkerLab/MiniCRT/entry.o";
+//	myEntryFuncObj = "/home/ns/linkerLab/libc-o/crt1.o";
+=======
 	myEntryFuncObj_ =  lib + "/entry.o";
+>>>>>>> develop
 	objFilePath.push_back(myEntryFuncObj_);
 	for( unsigned int i = 0;i < objFilePath.size();++i )
 	{
@@ -82,6 +87,15 @@ bool Builder::NewSymbol( Symbol sym )
 		if( it != finded_.end() )
 		{
 			;
+<<<<<<< HEAD
+//			if( sym.symStr->st_shndx == SHN_COMMON &&
+//				it->second.symStr->st_value < sym.symStr->st_value )
+//			{
+//				//common块，取最大的
+//				it->second.symStr->st_value = sym.symStr->st_value;
+//			}
+=======
+>>>>>>> develop
 		}
 		else
 			//TODO 考虑此处的复制是否会有问题
@@ -110,6 +124,11 @@ bool Builder::NewSymbol( Symbol sym )
 			//sym is common and it->second is common
 			else if( sym.symStr_->st_shndx == SHN_COMMON && it->second.symStr_->st_shndx == SHN_COMMON )
 			{
+<<<<<<< HEAD
+//				if( sym.symStr->st_value > it->second.symStr->st_value )
+//					it->second.symStr->st_value = sym.symStr->st_value;
+=======
+>>>>>>> develop
 			}
 			//sym is common or undef and it->second is strong .. ignore
 			else
@@ -141,6 +160,11 @@ bool Builder::CollectSymbol()
 	//如果能够集齐返回真
 
 	//先处理rawSection，不够的再到标准库中找
+<<<<<<< HEAD
+	//TODO section的释放问题
+
+=======
+>>>>>>> develop
 	for( unsigned int i = 0;i < rawSection_.size();++i )
 	{
 		for( unsigned int j = 0;j < rawSection_[i]->symArr_.size();++j )
@@ -150,12 +174,20 @@ bool Builder::CollectSymbol()
 		}
 	}
 
+<<<<<<< HEAD
+	//TODO 假设COMMON块只会由变量声明产生
+=======
+>>>>>>> develop
 	map<string,Symbol>::iterator it = finded_.begin();
 	while( it != finded_.end() )
 	{
 		if( it->second.symStr_->st_shndx == SHN_COMMON )
 		{
+<<<<<<< HEAD
+			cout << "Error :a common didn't fit" << endl;
+=======
 			cout << "error:" << it->first << "没有初始化" << endl;
+>>>>>>> develop
 			return false;
 		}
 		++it;
@@ -231,7 +263,10 @@ bool Builder::CollectSymbol()
 			cout << it->first << endl;
 			++it;
 		}
+<<<<<<< HEAD
+=======
 #ifdef DEBUG
+>>>>>>> develop
 		cout << "已找到的符号" << endl;
 		it = finded_.begin();
 		while( it != finded_.end() )
@@ -239,7 +274,10 @@ bool Builder::CollectSymbol()
 			cout << it->first << endl;
 			++it;
 		}
+<<<<<<< HEAD
+=======
 #endif
+>>>>>>> develop
 		return false;
 	}
 
@@ -306,18 +344,50 @@ void Builder::PrintNeededSymbol()
 bool Builder::DoMerge()
 {
 	//先把要合并的节挑出来
+<<<<<<< HEAD
+=======
 	//所有节最后分三种，可读可执行，可写可读，只读
+>>>>>>> develop
 	for( unsigned int i = 0;i < rawSection_.size();++i )
 	{
 		Section *pSec = rawSection_[i];
 		for( int j = 0;j < pSec->secHeader.num_;++j )
 		{
+<<<<<<< HEAD
+			/*
+			 * 包含这样属性的节一股脑加上
+			 */
+=======
+>>>>>>> develop
 			if( pSec->secHeader.sectionHeaderPtr_[j].sh_size == 0 )
 				continue;
 			if( pSec->secHeader.sectionHeaderPtr_[j].sh_type == SHT_PROGBITS ||
 				pSec->secHeader.sectionHeaderPtr_[j].sh_type == SHT_NOBITS	)
 			{
 				Position tp( i,j );
+<<<<<<< HEAD
+				order_.push_back(tp);
+			}
+		}
+	}
+
+	//TODO 添加对齐
+	/*
+	 * 修正原有的shdr中的sh_addr和sh_offset即可
+	 */
+
+	int offset = GetHeadSize();
+	int vAddr = ENTRY_ADDRESS + offset;
+
+	for( unsigned int i = 0;i < order_.size();++i )
+	{
+		Section *pSec = rawSection_[order_[i].a_];
+		pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_offset = offset;
+		pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_addr = vAddr;
+		int size = pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
+		offset += size;
+		vAddr += size;
+=======
 				Elf64_Xword flags = pSec->secHeader.sectionHeaderPtr_[j].sh_flags;
 				if( flags & SHF_EXECINSTR )
 					exeSec_.push_back(tp);
@@ -354,11 +424,14 @@ bool Builder::DoMerge()
 		order_.push_back( readSec_[i] );
 		Elf64_Shdr *pshdr = &(rawSection_[readSec_[i].a_]->secHeader.sectionHeaderPtr_[readSec_[i].b_]);
 		CalculateSectionAddress( pshdr,offset,vAddr );
+>>>>>>> develop
 	}
 
 	return true;
 }
 
+<<<<<<< HEAD
+=======
 void Builder::CalculateSectionAddress( Elf64_Shdr *pshdr,int &offset,int &vAddr )
 {
 	int tn = CountAlign( vAddr,pshdr->sh_addralign );
@@ -371,16 +444,25 @@ void Builder::CalculateSectionAddress( Elf64_Shdr *pshdr,int &offset,int &vAddr 
 	vAddr += tn;
 }
 
+>>>>>>> develop
 int Builder::GetHeadSize()
 {
 	/*
 	 * 在把节都挑选出来以后，计算头部信息要多大
 	 * 一个elf header
+<<<<<<< HEAD
+	 * n个shdr
+	 * 1个phdr
+	 */
+
+	return sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr);
+=======
 	 * 0个shdr
 	 * 3个phdr
 	 */
 
 	return sizeof(Elf64_Ehdr) + 3*sizeof(Elf64_Phdr);
+>>>>>>> develop
 }
 
 void Builder::GetSymbolAddress()
@@ -391,6 +473,10 @@ void Builder::GetSymbolAddress()
 	 * 计算方法：
 	 * 节的虚拟地址加上符号在节中的偏移
 	 *
+<<<<<<< HEAD
+	 * TODO 假设所有finded里的symbol都在order的节中
+=======
+>>>>>>> develop
 	 */
 
 	map<string,Symbol>::iterator it = finded_.begin();
@@ -405,9 +491,15 @@ void Builder::GetSymbolAddress()
 		int secAddr = it->second.belongToSec_->secHeader.sectionHeaderPtr_[secIdx].sh_addr;
 		int symAddr = secAddr + it->second.symStr_->st_value;
 		it->second.SetAddress(symAddr);
+<<<<<<< HEAD
+
+		cout << "Addr:" << it->first << "\t\t" << hex << symAddr << dec << endl;
+
+=======
 #ifdef DEBUG
 		cout << "Addr:" << it->first << "\t\t" << hex << symAddr << dec << endl;
 #endif
+>>>>>>> develop
 		++it;
 	}
 }
@@ -470,13 +562,27 @@ void Builder::Relocation()
 					int relIdx = ph.sectionHeaderPtr_[i].sh_info;	//需要修正的地址
 					int symIdx = ph.sectionHeaderPtr_[i].sh_link;
 
+<<<<<<< HEAD
+=======
 					int relAddr;
 
+>>>>>>> develop
 					Elf64_Sym *pSym = &(((Elf64_Sym*)pSec->data_[symIdx])[ELF64_R_SYM(pRela->r_info)]);
 					char *pStrTab = (char*)pSec->data_[ ph.sectionHeaderPtr_[symIdx].sh_link ];
 					string symName( pStrTab + pSym->st_name );
 
 					if( symName == "" )
+<<<<<<< HEAD
+						continue;
+
+					map<string,Symbol>::iterator it = finded_.find(symName);
+					if( it == finded_.end() )
+						continue;
+
+					int relAddr = it->second.address_;
+					if( relAddr == -1 )
+						continue;
+=======
 					{
 
 						//静态变量，没有对应的sym。将relAddr设为对应节的虚拟地址即可。会通过append正确计算
@@ -492,6 +598,7 @@ void Builder::Relocation()
 						if( relAddr == -1 )
 							continue;
 					}
+>>>>>>> develop
 
 					//计算p
 					int pVal = ph.sectionHeaderPtr_[relIdx].sh_addr + pRela->r_offset;
@@ -509,12 +616,19 @@ void Builder::Relocation()
 					}
 					else
 					{
+<<<<<<< HEAD
+						cout << "warning : 4" << endl;
+					}
+
+#ifdef SYM_DEBUG
+=======
 #ifdef DEBUG
 						cout << "warning : 4" << endl;
 #endif
 					}
 
 #ifdef DEBUG
+>>>>>>> develop
 				cout << "rela:" << symName << "\t" << symIdx << "\t" << hex << ELF64_R_SYM(pRela->r_info) << "\t" << relIdx << dec << endl;
 				cout << "pVal:" << hex << pVal << dec << endl;
 				cout << "symbol rel addr:" << hex << relAddr << dec << endl;
@@ -525,19 +639,28 @@ void Builder::Relocation()
 			}
 			else if( ph.sectionHeaderPtr_[i].sh_type == SHT_REL )
 			{
+<<<<<<< HEAD
+=======
 				//没有处理这种节
+>>>>>>> develop
 				cout << "warning : find rel" << endl;
 			}
 			else
 				;
 		}
 
+<<<<<<< HEAD
+		#ifdef SYM_DEBUG
+=======
 		#ifdef  DEBUG
+>>>>>>> develop
 					cout << "--------------" << endl;
 		#endif
 	}
 }
 
+<<<<<<< HEAD
+=======
 void Builder::FillPhdr( Elf64_Phdr *pphdr,vector<Position> &block )
 {
 	int tn = block.size();
@@ -565,6 +688,7 @@ int Builder::CountAlign( int addr,int n )
 	return tn - (addr%tn);
 }
 
+>>>>>>> develop
 bool Builder::GenerateBinary()
 {
 	/*
@@ -587,12 +711,43 @@ bool Builder::GenerateBinary()
 	eh.e_entry = etAddr;
 	eh.e_phoff = sizeof(Elf64_Ehdr);
 	eh.e_phentsize = sizeof(Elf64_Phdr);
+<<<<<<< HEAD
+	eh.e_phnum = 1;
+=======
 	eh.e_phnum = 3;
+>>>>>>> develop
 	eh.e_shentsize = sizeof(Elf64_Shdr);
 	eh.e_shnum = 0;	//0
 	eh.e_shstrndx = 0;				//notice 没有字符串表 设为0
 	eh.e_shoff = 0;
 
+<<<<<<< HEAD
+	int pSize = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr);
+	for( unsigned int i = 0;i < order_.size();++i )
+	{
+		pSize += rawSection_[order_[i].a_]->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
+	}
+
+	Elf64_Phdr ph;
+	ph.p_type = PT_LOAD;
+	ph.p_offset = 0;
+	ph.p_vaddr = ENTRY_ADDRESS;
+	ph.p_paddr = ENTRY_ADDRESS;		//null
+	ph.p_filesz = pSize;			//TODO 此段计算也需要修正
+	ph.p_memsz = pSize;				//TODO bss段在计算offset的时候处理
+	ph.p_flags = PF_X | PF_W | PF_R;	//全属性
+	ph.p_align = 0;					//无指定
+
+	fstream newBin( outputPath_.c_str(),ios::binary | ios::out );
+	newBin.write( (char*)&eh,sizeof( Elf64_Ehdr ) );
+	newBin.write( (char*)&ph,sizeof( Elf64_Phdr ) );
+
+	for( unsigned int i = 0;i < order_.size();++i )
+	{
+		char *pTmp = (char*)rawSection_[order_[i].a_]->data_[order_[i].b_];
+		int size = rawSection_[order_[i].a_]->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
+		newBin.write( pTmp,size );
+=======
 	//代码段比较特殊，因为要加上程序头
 	int tn = exeSec_.size()-1;
 	Elf64_Shdr *pexeEndShdr = &(rawSection_[exeSec_[tn].a_]->secHeader.sectionHeaderPtr_[exeSec_[tn].b_]);
@@ -636,6 +791,7 @@ bool Builder::GenerateBinary()
 		int size = pshdr->sh_size;
 		newBin.write( pTmp,size );
 		nowOffset = pshdr->sh_offset + size;
+>>>>>>> develop
 	}
 	newBin.close();
 
