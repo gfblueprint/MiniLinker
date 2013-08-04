@@ -31,10 +31,10 @@ Builder::Builder( vector<string> &objFilePath,string lib,string output )
 {
 	libDirPath_ = lib;
 	outputPath_ = output;
-	entryFunc_ = "mini_crt_entry";
-	myEntryFuncObj_ = "/home/ns/linkerLab/MiniCRT/entry.o";
+	entryFunc_ = "main";
+//	myEntryFuncObj_ = "/home/ns/linkerLab/MiniCRT/entry.o";
 //	myEntryFuncObj = "/home/ns/linkerLab/libc-o/crt1.o";
-	objFilePath.push_back(myEntryFuncObj_);
+//	objFilePath.push_back(myEntryFuncObj_);
 	for( unsigned int i = 0;i < objFilePath.size();++i )
 	{
 		//这些变量在后面都会以指针形式被保存下来，所以不能用局部变亮
@@ -330,30 +330,57 @@ bool Builder::DoMerge()
 				pSec->secHeader.sectionHeaderPtr_[j].sh_type == SHT_NOBITS	)
 			{
 				Position tp( i,j );
-				order_.push_back(tp);
+//				order_.push_back(tp);
+				Elf64_Xword flags = pSec->secHeader.sectionHeaderPtr_[j].sh_flags;
+				if( flags | SHF_EXECINSTR )
+					exeSec_.push_back(tp);
+				else if( flags | SHF_WRITE )
+					writeSec_.push_back(tp);
+				else if( flags | SHF_ALLOC )
+					readSec_.push_back(tp);
+				else
+					;
 			}
 		}
 	}
-
-	//TODO 添加对齐
-	/*
-	 * 修正原有的shdr中的sh_addr和sh_offset即可
-	 */
-
 	int offset = GetHeadSize();
 	int vAddr = ENTRY_ADDRESS + offset;
 
-	for( unsigned int i = 0;i < order_.size();++i )
+	for( unsigned int i = 0;i < exeSec_.size();++i )
 	{
-		Section *pSec = rawSection_[order_[i].a_];
-		pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_offset = offset;
-		pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_addr = vAddr;
-		int size = pSec->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
-		offset += size;
-		vAddr += size;
+		order_.push_back( exeSec_[i] );
+		Elf64_Shdr *pshdr = &(rawSection_[exeSec_[i].a_]->secHeader.sectionHeaderPtr_[exeSec_[i].b_]);
+		CalculateSectionAddress( pshdr,offset,vAddr );
+	}
+	vAddr += CountAlign( vAddr,PAGE_SIZE_ALGIN );
+	for( unsigned int i = 0;i < writeSec_.size();++i )
+	{
+		order_.push_back( writeSec_[i] );
+		Elf64_Shdr *pshdr = &(rawSection_[writeSec_[i].a_]->secHeader.sectionHeaderPtr_[writeSec_[i].b_]);
+		CalculateSectionAddress( pshdr,offset,vAddr );
+
+	}
+	vAddr += CountAlign( vAddr,PAGE_SIZE_ALGIN );
+	for( unsigned int i = 0;i < readSec_.size();++i )
+	{
+		order_.push_back( readSec_[i] );
+		Elf64_Shdr *pshdr = &(rawSection_[readSec_[i].a_]->secHeader.sectionHeaderPtr_[readSec_[i].b_]);
+		CalculateSectionAddress( pshdr,offset,vAddr );
 	}
 
 	return true;
+}
+
+void Builder::CalculateSectionAddress( Elf64_Shdr *pshdr,int &offset,int &vAddr )
+{
+	int tn = CountAlign( vAddr,pshdr->sh_addralign );
+	offset += tn;
+	vAddr += tn;
+	pshdr->sh_offset = offset;
+	pshdr->sh_addr = vAddr;
+	tn = pshdr->sh_size;
+	offset += tn;
+	vAddr += tn;
 }
 
 int Builder::GetHeadSize()
@@ -361,11 +388,11 @@ int Builder::GetHeadSize()
 	/*
 	 * 在把节都挑选出来以后，计算头部信息要多大
 	 * 一个elf header
-	 * n个shdr
-	 * 1个phdr
+	 * 0个shdr
+	 * 3个phdr
 	 */
 
-	return sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr);
+	return sizeof(Elf64_Ehdr) + 3*sizeof(Elf64_Phdr);
 }
 
 void Builder::GetSymbolAddress()
@@ -513,6 +540,33 @@ void Builder::Relocation()
 	}
 }
 
+void Builder::FillPhdr( Elf64_Phdr *pphdr,vector<Position> &block )
+{
+	int tn = block.size();
+	if( tn == 0 )
+	{
+		pphdr->p_type = PT_NULL;
+		return ;
+	}
+	Elf64_Shdr *pbeg = &(rawSection_[block[0].a_]->secHeader.sectionHeaderPtr_[block[0].b_]);
+	Elf64_Shdr *pend = &(rawSection_[block[tn-1].a_]->secHeader.sectionHeaderPtr_[block[tn-1].b_]);
+	pphdr->p_type = PT_LOAD;
+	pphdr->p_offset = pbeg->sh_offset;
+	pphdr->p_vaddr = pbeg->sh_addr;
+	pphdr->p_paddr = pbeg->sh_addr;
+	pphdr->p_filesz = pend->sh_offset - pbeg->sh_offset + pend->sh_size;
+	pphdr->p_memsz = pphdr->p_filesz;
+	pphdr->p_align = 0;
+}
+
+int Builder::CountAlign( int addr,int n )
+{
+	int tn = 1<<n;
+	if( addr % tn == 0)
+		return 0;
+	return tn - (addr%tn);
+}
+
 bool Builder::GenerateBinary()
 {
 	/*
@@ -541,31 +595,49 @@ bool Builder::GenerateBinary()
 	eh.e_shstrndx = 0;				//notice 没有字符串表 设为0
 	eh.e_shoff = 0;
 
-	int pSize = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr);
-	for( unsigned int i = 0;i < order_.size();++i )
-	{
-		pSize += rawSection_[order_[i].a_]->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
-	}
+	//代码段比较特殊，因为要加上程序头
+	int tn = exeSec_.size()-1;
+	Elf64_Shdr *pexeEndShdr = &(rawSection_[exeSec_[tn].a_]->secHeader.sectionHeaderPtr_[exeSec_[tn].b_]);
+	Elf64_Phdr ph[3];
+	FillPhdr( &ph[0],exeSec_ );
+	ph[0].p_flags = PF_X | PF_R;
+	ph[0].p_offset = 0;
+	ph[0].p_filesz = pexeEndShdr->sh_offset + pexeEndShdr->sh_size;
+	ph[0].p_memsz = ph[0].p_filesz;
+	ph[0].p_vaddr = ENTRY_ADDRESS;
+	ph[0].p_paddr = ph[0].p_vaddr;
 
-	Elf64_Phdr ph;
-	ph.p_type = PT_LOAD;
-	ph.p_offset = 0;
-	ph.p_vaddr = ENTRY_ADDRESS;
-	ph.p_paddr = ENTRY_ADDRESS;		//null
-	ph.p_filesz = pSize;			//TODO 此段计算也需要修正
-	ph.p_memsz = pSize;				//TODO bss段在计算offset的时候处理
-	ph.p_flags = PF_X | PF_W | PF_R;	//全属性
-	ph.p_align = 0;					//无指定
+	FillPhdr( &ph[1],writeSec_ );
+	ph[1].p_flags = PF_W | PF_R;
+	FillPhdr( &ph[2],readSec_ );
+	ph[2].p_flags = PF_R;
 
 	fstream newBin( outputPath_.c_str(),ios::binary | ios::out );
 	newBin.write( (char*)&eh,sizeof( Elf64_Ehdr ) );
-	newBin.write( (char*)&ph,sizeof( Elf64_Phdr ) );
+	newBin.write( (char*)ph,3*sizeof( Elf64_Phdr ) );
 
+	int nowOffset = GetHeadSize();
 	for( unsigned int i = 0;i < order_.size();++i )
 	{
+		Elf64_Shdr *pshdr = &(rawSection_[order_[i].a_]->secHeader.sectionHeaderPtr_[order_[i].b_]);
+		int tn = pshdr->sh_offset - nowOffset;
+		if( tn < 0 )
+		{
+			cout << "error:GenerateBinary()" <<endl;
+		}
+		if( tn > 0 )
+		{
+			char *pc = new char[tn];
+#ifdef DEBUG
+			for( int j = 0;j < tn;++j )
+				pc[j] = 0xCC;
+#endif
+			newBin.write( pc,tn );			//填补由于对齐产生的空白，随便添些东西
+		}
 		char *pTmp = (char*)rawSection_[order_[i].a_]->data_[order_[i].b_];
-		int size = rawSection_[order_[i].a_]->secHeader.sectionHeaderPtr_[order_[i].b_].sh_size;
+		int size = pshdr->sh_size;
 		newBin.write( pTmp,size );
+		nowOffset = pshdr->sh_offset + size;
 	}
 	newBin.close();
 

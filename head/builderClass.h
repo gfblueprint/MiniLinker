@@ -44,6 +44,9 @@ public:
 	vector<Section*> rawSection_;
 	//虚拟合并所得顺序
 	vector<Position> order_;
+	vector<Position> exeSec_;
+	vector<Position> writeSec_;
+	vector<Position> readSec_;
 
 	//目前还没有找到的符号集
 	map<string,Symbol> needed_;
@@ -76,6 +79,11 @@ public:
 	//缺失的符号在库中查找
 	bool LinkLibSymbol();
 	void PrintLibSymbol();
+
+private:
+	int CountAlign( int addr,int n );		//计算addr要2^n对齐，需要往后几个字节
+	void CalculateSectionAddress( Elf64_Shdr *pshdr,int &offset,int &vAddr );
+	void FillPhdr( Elf64_Phdr *pphdr,vector<Position> &block );
 };
 
 #endif /* BUILDERCLASS_H_ */

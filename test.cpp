@@ -24,13 +24,10 @@ string g_lib = "/home/ns/linkerLab/MiniCRT";
 
 int main()
 {
-	cout << "ehdr size:" << sizeof( Elf64_Ehdr) << endl;
 	vector<string> objPath;
 
-//	objPath.push_back( g_c );
-
-//	objPath.push_back( g_spFileName );
-	objPath.push_back( g_spFileName2 );
+	objPath.push_back( g_spFileName );
+//	objPath.push_back( g_spFileName2 );
 	Builder bd( objPath,g_lib,g_output );
 
 	if( !bd.CollectSymbol() )
